@@ -16,15 +16,19 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.conf import settings
+from django.conf.urls.static import static
+from .views import root_view
 
 urlpatterns = [
+    path('', root_view, name='root'),
     path('admin/', admin.site.urls),
-    path('accounts/', include('accounts.urls')),
-    path('analytics/', include('analytics.urls')),
-    path('bookmarks/', include('bookmarks.urls')),
-    path('chatbot/', include('chatbot.urls')),
-    path('comments/', include('comments.urls')),
-    path('feedbacks/', include('feedbacks.urls')),
-    path('ideas/', include('ideas.urls')),
-    path('notifications/', include('notifications.urls')),
-]
+    path('api/accounts/', include('accounts.urls')),
+    path('api/analytics/', include('analytics.urls')),
+    path('api/bookmarks/', include('bookmarks.urls')),
+    path('api/chatbot/', include('chatbot.urls')),
+    path('api/comments/', include('comments.urls')),
+    path('api/feedbacks/', include('feedbacks.urls')),
+    path('api/ideas/', include('ideas.urls')),
+    path('api/notifications/', include('notifications.urls')),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

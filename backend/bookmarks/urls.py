@@ -2,5 +2,6 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('', views.index, name='bookmarks_index'),
+    path('', views.BookmarkListView.as_view(), name='bookmark_list'),
+    path('toggle/', views.toggle_bookmark, name='toggle_bookmark'),
 ]

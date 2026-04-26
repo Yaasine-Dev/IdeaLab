@@ -1,0 +1,4 @@
+import Avatar from '../ui/Avatar'
+import Badge from '../ui/Badge'
+import { levelBadge, scoreColor } from '../../utils/helpers'
+export default function FeedbackCard({ feedback }){ return <div className='rounded-xl bg-white p-4 shadow-sm'><div className='mb-3 flex items-center justify-between'><div className='flex items-center gap-2'><Avatar size='sm' src={feedback.reviewer?.avatar} username={feedback.reviewer?.username}/><div><p className='text-sm font-semibold'>{feedback.reviewer?.username}</p><Badge className={levelBadge(feedback.reviewer?.level)}>{feedback.reviewer?.level||'bronze'}</Badge></div></div><span className={`rounded border px-2 py-1 text-sm font-semibold ${scoreColor(feedback.total_score || 0)}`}>{feedback.total_score || 0}/100</span></div><p className='text-sm text-slate-600'>{feedback.comment}</p></div>}
