@@ -1,7 +1,10 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import BookmarkViewSet
+
+router = DefaultRouter()
+router.register(r'bookmarks', BookmarkViewSet, basename='bookmark')
 
 urlpatterns = [
-    path('', views.BookmarkListView.as_view(), name='bookmark_list'),
-    path('toggle/', views.toggle_bookmark, name='toggle_bookmark'),
+    path('', include(router.urls)),
 ]

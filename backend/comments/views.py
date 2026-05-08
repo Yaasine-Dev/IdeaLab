@@ -1,75 +1,99 @@
-from rest_framework import generics
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from django.shortcuts import get_object_or_404
 from .models import Comment
-from .serializers import CommentSerializer
+from .serializers import CommentSerializer, CommentCreateSerializer
 from ideas.models import Idea
-from notifications.utils import notify
-from accounts.reputation import add_reputation
 
 
-class CommentListCreateView(generics.ListCreateAPIView):
+class CommentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet pour la gestion des commentaires.
+    
+    Endpoints :
+    - GET    /api/comments/?idea_id=<uuid>  → liste des commentaires d'une idée
+    - POST   /api/comments/                 → créer un commentaire
+    - PATCH  /api/comments/<uuid>/          → modifier (auteur uniquement, 24h)
+    - DELETE /api/comments/<uuid>/          → soft delete
+    """
+    permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = CommentSerializer
-    permission_classes = [IsAuthenticated]
+    lookup_field = 'id'
 
     def get_queryset(self):
-        return Comment.objects.filter(idea_id=self.kwargs['idea_id'], parent__isnull=True).order_by('-created_at')
+        """
+        Retourne les commentaires racines (parent=None) non supprimés.
+        Filtre par idea_id si fourni.
+        Optimisation : select_related pour éviter N+1.
+        """
+        queryset = Comment.objects.filter(
+            is_deleted=False,
+            parent__isnull=True  # Seulement les commentaires racines
+        ).select_related('author', 'author__userprofile', 'idea').prefetch_related('replies')
+
+        idea_id = self.request.query_params.get('idea_id')
+        if idea_id:
+            queryset = queryset.filter(idea_id=idea_id)
+
+        return queryset.order_by('-created_at')
+
+    def get_serializer_class(self):
+        """Utilise CommentCreateSerializer pour la création."""
+        if self.action == 'create':
+            return CommentCreateSerializer
+        return CommentSerializer
 
     def perform_create(self, serializer):
-        idea_id = self.kwargs['idea_id']
-        comment = serializer.save(idea_id=idea_id)
-        try:
-            idea = Idea.objects.get(id=idea_id)
-            if idea.owner != self.request.user:
-                notify(
-                    idea.owner, 'comment',
-                    f'{self.request.user.username} commented on your idea "{idea.title}".',
-                    related_id=idea.id,
-                )
-                # +2 pts for receiving a comment
-                add_reputation(idea.owner, 2, f'Received comment on "{idea.title}"')
-        except Idea.DoesNotExist:
-            pass
+        """Associe l'auteur au commentaire lors de la création."""
+        serializer.save(author=self.request.user)
 
+    def update(self, request, *args, **kwargs):
+        """
+        Modification d'un commentaire.
+        Règles :
+        - Auteur uniquement
+        - Dans les 24h après création
+        """
+        comment = self.get_object()
 
-class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Comment.objects.all()
-    serializer_class = CommentSerializer
-    permission_classes = [IsAuthenticated]
-
-    def perform_update(self, serializer):
-        if self.get_object().author != self.request.user:
-            raise PermissionDenied("You can only update your own comments")
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user:
-            raise PermissionDenied("You can only delete your own comments")
-        instance.delete()
-
-
-class CommentRepliesView(generics.ListCreateAPIView):
-    serializer_class = CommentSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return Comment.objects.filter(parent_id=self.kwargs['comment_id']).order_by('-created_at')
-
-    def perform_create(self, serializer):
-        comment_id = self.kwargs['comment_id']
-        parent = Comment.objects.get(id=comment_id)
-        comment = serializer.save(idea=parent.idea, parent_id=comment_id)
-        # Notify parent comment author (if not self)
-        if parent.author != self.request.user:
-            notify(
-                parent.author, 'comment',
-                f'{self.request.user.username} replied to your comment on "{parent.idea.title}".',
-                related_id=parent.idea.id,
+        # Vérification : auteur uniquement
+        if comment.author != request.user:
+            return Response(
+                {'detail': 'Vous ne pouvez modifier que vos propres commentaires.'},
+                status=status.HTTP_403_FORBIDDEN
             )
-        # Also notify idea owner if different from both
-        if parent.idea.owner != self.request.user and parent.idea.owner != parent.author:
-            notify(
-                parent.idea.owner, 'comment',
-                f'{self.request.user.username} replied to a comment on your idea "{parent.idea.title}".',
-                related_id=parent.idea.id,
+
+        # Vérification : 24h maximum
+        if not comment.can_edit():
+            return Response(
+                {'detail': 'Vous ne pouvez plus modifier ce commentaire (délai de 24h dépassé).'},
+                status=status.HTTP_403_FORBIDDEN
             )
+
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Soft delete : marque is_deleted=True au lieu de supprimer.
+        Seul l'auteur peut supprimer son commentaire.
+        """
+        comment = self.get_object()
+
+        # Vérification : auteur uniquement
+        if comment.author != request.user:
+            return Response(
+                {'detail': 'Vous ne pouvez supprimer que vos propres commentaires.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Soft delete
+        comment.is_deleted = True
+        comment.content = "[Commentaire supprimé]"
+        comment.save(update_fields=['is_deleted', 'content'])
+
+        return Response(
+            {'detail': 'Commentaire supprimé avec succès.'},
+            status=status.HTTP_204_NO_CONTENT
+        )

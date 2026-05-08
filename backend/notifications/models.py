@@ -1,18 +1,34 @@
+import uuid
 from django.db import models
-from accounts.models import User
+from django.conf import settings
+
 
 class Notification(models.Model):
     TYPE_CHOICES = (
-        ('feedback', 'Feedback'),
-        ('comment', 'Comment'),
-        ('status', 'Status Change'),
+        ('new_feedback',  'Nouveau feedback'),
+        ('new_comment',   'Nouveau commentaire'),
+        ('new_reply',     'Nouvelle réponse'),
+        ('idea_promoted', 'Idée prometteuse'),
+        ('feedback_voted','Feedback voté'),
+        ('status_changed','Statut modifié'),
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    message = models.TextField()
+    id           = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user         = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
+    notif_type   = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    message      = models.TextField()
+    related_id   = models.CharField(max_length=100, null=True, blank=True)
+    is_read      = models.BooleanField(default=False)
+    created_at   = models.DateTimeField(auto_now_add=True)
 
-    is_read = models.BooleanField(default=False)
-    related_id = models.IntegerField(null=True, blank=True)
+    notif_type = models.CharField(
+    max_length=20, 
+    choices=TYPE_CHOICES, 
+    default='new_feedback'  # ← ajoute cette ligne
+    )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.notif_type}] → {self.user.username}"

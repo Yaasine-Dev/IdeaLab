@@ -48,6 +48,9 @@ INSTALLED_APPS = [
     'bookmarks',
     'analytics',
     'chatbot',
+    'votes',
+    'export',
+    'search',
 ]
 
 MIDDLEWARE = [
@@ -87,7 +90,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'idealab',
+        'NAME': 'idealab_db',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',
@@ -148,6 +151,8 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 12,
 }
 
 SIMPLE_JWT = {
@@ -161,3 +166,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# ─── Celery ──────────────────────────────────────────────────
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'

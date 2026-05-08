@@ -31,4 +31,7 @@ urlpatterns = [
     path('api/feedbacks/', include('feedbacks.urls')),
     path('api/ideas/', include('ideas.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/', include('votes.urls')),
+    path('api/export/', include('export.urls')),
+    path('api/search/', include('search.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
