@@ -77,7 +77,7 @@ def entrepreneur_analytics(request):
             'idea_id': str(f.idea.id),
             'idea_title': f.idea.title,
             'reviewer': f.reviewer.username,
-            'reviewer_level': getattr(f.reviewer.userprofile, 'level', 'Bronze') if hasattr(f.reviewer, 'userprofile') else 'Bronze',
+            'reviewer_level': getattr(getattr(f.reviewer, 'userprofile', None), 'level', 'Bronze'),
             'weighted_score': round(f.weighted_score, 2),
             'market_score': f.market_score,
             'innovation_score': f.innovation_score,

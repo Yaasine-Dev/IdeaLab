@@ -41,7 +41,7 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Suspense fallback={<div className='p-8'>Loading...</div>}>
           <Routes>
             <Route element={<AppLayout />}>

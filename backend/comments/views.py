@@ -46,8 +46,18 @@ class CommentViewSet(viewsets.ModelViewSet):
         return CommentSerializer
 
     def perform_create(self, serializer):
-        """Associe l'auteur au commentaire lors de la création."""
-        serializer.save(author=self.request.user)
+        comment = serializer.save(author=self.request.user)
+        try:
+            from notifications.utils import notify
+            from accounts.reputation import add_reputation
+            idea = comment.idea
+            if idea.owner != self.request.user:
+                notify(idea.owner, 'new_comment',
+                    f'{self.request.user.username} commented on your idea "{idea.title}".',
+                    related_id=idea.id)
+                add_reputation(idea.owner, 2, f'Received comment on "{idea.title}"')
+        except Exception:
+            pass
 
     def update(self, request, *args, **kwargs):
         """

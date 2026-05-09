@@ -68,7 +68,7 @@ class IdeaDetailView(generics.RetrieveUpdateDestroyAPIView):
             from accounts.reputation import add_reputation
             from notifications.utils import notify
             add_reputation(idea.owner, 50, f'Idea "{idea.title}" was validated')
-            notify(idea.owner, 'status', f'Your idea "{idea.title}" has been validated! +50 reputation points.', related_id=idea.id)
+            notify(idea.owner, 'status_changed', f'Your idea "{idea.title}" has been validated! +50 reputation points.', related_id=idea.id)
 
     def perform_destroy(self, instance):
         if instance.owner != self.request.user:
@@ -120,7 +120,7 @@ def change_idea_status(request, pk):
 
     label = {'review': 'moved to review', 'validated': 'validated ✓', 'rejected': 'rejected'}
     notify(
-        idea.owner, 'status',
+        idea.owner, 'status_changed',
         f'Your idea "{idea.title}" has been {label[new_status]} by {request.user.username}.',
         related_id=idea.id,
     )
