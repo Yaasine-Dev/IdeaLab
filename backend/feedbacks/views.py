@@ -20,7 +20,7 @@ class FeedbackListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Feedback.objects.select_related(
-            'reviewer', 'reviewer__profile', 'idea'
+            'reviewer', 'reviewer__userprofile', 'idea'
         )
         idea_id = self.request.query_params.get('idea')
         if idea_id:
@@ -44,22 +44,19 @@ class FeedbackDetailView(generics.RetrieveUpdateDestroyAPIView):
         return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
 
     def perform_destroy(self, instance):
-        idea_id = str(instance.idea_id)
-        # Pénalité réputation reviewer (-2 pts)
+        idea = instance.idea
+        instance.delete()
+        # Recalculate SGV synchronously
         try:
-            instance.reviewer.profile.add_reputation(-2)
-            from accounts.models import ReputationLog
-            ReputationLog.objects.create(
-                user=instance.reviewer,
-                points=-2,
-                reason="Feedback supprimé par l'administrateur",
-            )
+            feedbacks = Feedback.objects.filter(idea=idea)
+            if feedbacks.exists():
+                avg = sum(f.weighted_score for f in feedbacks) / feedbacks.count()
+                idea.global_score = round(avg, 2)
+            else:
+                idea.global_score = 0
+            idea.save(update_fields=['global_score'])
         except Exception:
             pass
-        instance.delete()
-        # Recalcul SGV après suppression
-        from .tasks import recalculate_sgv_task
-        recalculate_sgv_task.delay(idea_id)
 
 
 class FeedbackHelpfulView(APIView):
