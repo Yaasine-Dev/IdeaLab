@@ -60,7 +60,10 @@ export default function Profile() {
 
   const { data: feedbacks = [] } = useQuery({
     queryKey: ['profile-feedbacks', username],
-    queryFn: () => getMyReviews().then((r) => Array.isArray(r.data) ? r.data : []),
+    queryFn: () => getFeedbacks(undefined).then((r) => {
+      const all = Array.isArray(r.data?.results) ? r.data.results : (Array.isArray(r.data) ? r.data : [])
+      return all.filter((f) => (f.reviewer_username || f.reviewer?.username) === username)
+    }),
     enabled: !!user && user.role === 'reviewer' && isOwn,
   })
 

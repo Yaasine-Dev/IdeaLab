@@ -4,7 +4,7 @@ import { BarChart3, Lightbulb, MessageSquare, PlusCircle, Star, Trash2, Pencil, 
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getDashboard } from '../api/analytics.api'
-import { deleteIdea } from '../api/ideas.api'
+import { deleteIdea, getIdeas } from '../api/ideas.api'
 import { getNotifs } from '../api/notifications.api'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -50,23 +50,33 @@ export default function EntrepreneurDashboard() {
     },
   })
 
+  const { data: ideasData, isLoading: ideasLoading } = useQuery({
+    queryKey: ['my-ideas'],
+    queryFn: async () => {
+      const res = await getIdeas({ owner: user?.username })
+      return Array.isArray(res.data?.results) ? res.data.results : (Array.isArray(res.data) ? res.data : [])
+    },
+    enabled: !!user,
+  })
+
   const deleteMutation = useMutation({
     mutationFn: deleteIdea,
     onSuccess: () => {
       toast.success('Idea deleted')
       queryClient.invalidateQueries({ queryKey: ['analytics', 'dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['my-ideas'] })
       setIdeaToDelete(null)
     },
     onError: () => toast.error('Could not delete idea'),
   })
 
-  const stats    = data?.stats || {}
-  const ideas    = data?.ideas || []
+  const stats     = data?.stats || {}
+  const ideas     = ideasData || []
   const feedbacks = data?.recent_feedbacks || []
-  const sgvHistory = data?.sgv_evolution || data?.sgv_history || []
-  const dims      = data?.dimensions_radar?.reduce((acc, d) => ({ ...acc, [d.dimension]: d.score }), {}) || data?.dimension_averages || {}
+  const sgvHistory = data?.sgv_evolution || []
+  const dims      = data?.dimensions_radar?.reduce((acc, d) => ({ ...acc, [d.dimension]: d.score }), {}) || {}
 
-  if (isLoading) return <DashSkeleton />
+  if (isLoading || ideasLoading) return <DashSkeleton />
 
   return (
     <div className='min-h-screen bg-primary'>
@@ -88,10 +98,10 @@ export default function EntrepreneurDashboard() {
         {/* ── STAT CARDS ── */}
         <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
           {[
-            { icon: Lightbulb,    label: 'Total Ideas',      value: stats.total_ideas    || 0 },
-            { icon: MessageSquare,label: 'Feedbacks Received',value: stats.total_feedbacks|| 0 },
-            { icon: BarChart3,    label: 'Average SGV',       value: stats.average_sgv    || 0 },
-            { icon: Star,         label: 'Best SGV Score',    value: stats.best_sgv       || 0 },
+            { icon: Lightbulb,    label: 'Total Ideas',       value: stats.total_ideas    || ideas.length || 0 },
+            { icon: MessageSquare,label: 'Feedbacks Received', value: stats.total_feedbacks || 0 },
+            { icon: BarChart3,    label: 'Average SGV',        value: stats.avg_sgv        || stats.average_sgv || 0 },
+            { icon: Star,         label: 'Best SGV Score',     value: stats.best_sgv       || 0 },
           ].map(({ icon: Icon, label, value }, i) => (
             <motion.div
               key={label}
@@ -121,8 +131,8 @@ export default function EntrepreneurDashboard() {
             {sgvHistory.length ? (
               <div className='space-y-3'>
                 {sgvHistory.map((item) => (
-                  <div key={item.idea} className='flex items-center gap-3'>
-                    <p className='w-32 truncate text-xs text-secondary/60'>{item.idea}</p>
+                  <div key={item.idea_id || item.idea} className='flex items-center gap-3'>
+                    <p className='w-32 truncate text-xs text-secondary/60'>{item.idea_title || item.idea}</p>
                     <div className='flex-1 rounded-full bg-secondary/10 h-2'>
                       <motion.div
                         initial={{ width: 0 }}
@@ -279,11 +289,11 @@ export default function EntrepreneurDashboard() {
                   <div key={f.id} className='flex items-center justify-between px-6 py-3.5'>
                     <div className='min-w-0 flex-1'>
                       <p className='truncate text-sm font-semibold text-secondary'>{f.idea_title}</p>
-                      <p className='text-xs text-secondary/45'>{f.reviewer?.username} · {timeAgo(f.created_at)}</p>
+                      <p className='text-xs text-secondary/45'>{f.reviewer || f.reviewer?.username} · {timeAgo(f.created_at)}</p>
                     </div>
                     <div className='ml-4 flex items-center gap-2'>
-                      <span className={`font-display text-base font-black ${scoreColor(f.total_score || 0)}`}>{f.total_score || 0}</span>
-                      <Link to={`/ideas/${f.idea?.id || f.idea_id}`} className='flex h-6 w-6 items-center justify-center rounded-lg border border-secondary/20 text-secondary/40 hover:text-secondary'>
+                      <span className={`font-display text-base font-black ${scoreColor(f.weighted_score || f.total_score || 0)}`}>{f.weighted_score || f.total_score || 0}</span>
+                      <Link to={`/ideas/${f.idea_id || f.idea?.id}`} className='flex h-6 w-6 items-center justify-center rounded-lg border border-secondary/20 text-secondary/40 hover:text-secondary'>
                         <ChevronRight size={12} />
                       </Link>
                     </div>

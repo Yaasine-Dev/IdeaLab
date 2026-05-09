@@ -98,10 +98,10 @@ function OverviewTab() {
   if (isLoading) return <TabSkeleton />
 
   const statCards = [
-    { icon: Users,         label: 'Total Users',     value: data?.total_users     || 0 },
-    { icon: Lightbulb,     label: 'Total Ideas',     value: data?.total_ideas     || 0 },
-    { icon: MessageSquare, label: 'Total Feedbacks', value: data?.total_feedbacks || 0 },
-    { icon: Shield,        label: 'Pending Review',  value: data?.pending_ideas   || 0 },
+    { icon: Users,         label: 'Total Users',     value: data?.stats?.total_users     || data?.total_users     || 0 },
+    { icon: Lightbulb,     label: 'Total Ideas',     value: data?.stats?.total_ideas     || data?.total_ideas     || 0 },
+    { icon: MessageSquare, label: 'Total Feedbacks', value: data?.stats?.total_feedbacks || data?.total_feedbacks || 0 },
+    { icon: Shield,        label: 'Pending Review',  value: data?.stats?.pending_ideas   || data?.pending_ideas   || 0 },
   ]
 
   return (
@@ -127,11 +127,11 @@ function OverviewTab() {
       </div>
 
       {/* Ideas by status */}
-      {data?.ideas_by_status?.length > 0 && (
+      {(data?.ideas_by_status || data?.ideas_by_status_data || []).length > 0 && (
         <div className='rounded-2xl border border-secondary/12 bg-primary p-6 shadow-[0_4px_24px_rgba(104,26,21,0.06)]'>
           <h2 className='mb-5 font-display text-base font-bold text-secondary'>Ideas by Status</h2>
           <div className='space-y-3'>
-            {data.ideas_by_status.map(({ name, count }) => (
+            {(data?.ideas_by_status || []).map(({ name, count }) => (
               <div key={name} className='flex items-center gap-3'>
                 <span className={`w-24 shrink-0 rounded-full border px-2.5 py-0.5 text-center text-[11px] font-semibold capitalize ${STATUS_STYLES[name] || STATUS_STYLES.draft}`}>{name}</span>
                 <div className='flex-1 h-2 rounded-full bg-secondary/10'>

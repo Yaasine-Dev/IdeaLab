@@ -3,7 +3,8 @@ import { motion } from 'framer-motion'
 import { Award, BarChart2, ChevronRight, ClipboardList, MessageSquare, Star, TrendingUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getReviewerStats } from '../api/analytics.api'
+import { getFeedbacks, getMyReviews } from '../api/feedbacks.api'
+import { getIdeas } from '../api/ideas.api'
 import EmptyState from '../components/ui/EmptyState'
 import useAuthStore from '../store/authStore'
 import { formatDate, timeAgo } from '../utils/helpers'
@@ -31,7 +32,38 @@ export default function ReviewerDashboard() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', 'reviewer'],
-    queryFn: () => getReviewerStats().then((r) => r.data),
+    queryFn: async () => {
+      const [feedbacksRes, pendingRes] = await Promise.all([
+        getFeedbacks(),
+        getIdeas({ status: 'submitted' }),
+      ])
+      const feedbacks = Array.isArray(feedbacksRes.data?.results) ? feedbacksRes.data.results : (Array.isArray(feedbacksRes.data) ? feedbacksRes.data : [])
+      const pending   = Array.isArray(pendingRes.data?.results)   ? pendingRes.data.results   : (Array.isArray(pendingRes.data)   ? pendingRes.data   : [])
+      const scores    = feedbacks.map((f) => f.weighted_score || 0)
+      const avg       = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0
+      return {
+        stats: {
+          total_feedbacks: feedbacks.length,
+          ideas_reviewed:  [...new Set(feedbacks.map((f) => f.idea))].length,
+          average_score:   Math.round(avg * 10) / 10,
+          pending_count:   pending.length,
+          reputation_points: 0,
+        },
+        evaluated_ideas: feedbacks.map((f) => ({
+          id:                f.id,
+          idea_id:           f.idea,
+          idea_title:        f.idea_title || 'Idea',
+          my_score:          f.weighted_score || 0,
+          market_score:      f.market_score,
+          innovation_score:  f.innovation_score,
+          feasibility_score: f.feasibility_score,
+          roi_score:         f.roi_score,
+          created_at:        f.created_at,
+        })),
+        scores,
+        pending_ideas: pending,
+      }
+    },
   })
 
   // all hooks before early return
