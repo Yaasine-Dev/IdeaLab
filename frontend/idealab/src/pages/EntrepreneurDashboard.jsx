@@ -1,18 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BarChart3, Lightbulb, MessageSquare, PlusCircle, Star, Trash2, Pencil, TrendingUp, Eye, ChevronRight } from 'lucide-react'
+import { BarChart3, Lightbulb, MessageSquare, PlusCircle, Star, Trash2, Pencil, TrendingUp, Eye, ChevronRight, X, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getDashboard } from '../api/analytics.api'
-import { deleteIdea, getIdeas } from '../api/ideas.api'
+import { deleteIdea, getIdea, getIdeas } from '../api/ideas.api'
+import { getFeedbacks } from '../api/feedbacks.api'
 import { getNotifs } from '../api/notifications.api'
-import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
 import Modal from '../components/ui/Modal'
 import { useToast } from '../components/ui/Toast'
 import useAuthStore from '../store/authStore'
-import { timeAgo } from '../utils/helpers'
+import { timeAgo, formatDate } from '../utils/helpers'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -36,6 +36,7 @@ export default function EntrepreneurDashboard() {
   const navigate = useNavigate()
   const toast = useToast()
   const [ideaToDelete, setIdeaToDelete] = useState(null)
+  const [ideaToView, setIdeaToView]     = useState(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', 'dashboard'],
@@ -232,14 +233,14 @@ export default function EntrepreneurDashboard() {
                       </td>
                       <td className='px-6 py-4'>
                         <div className='flex items-center gap-2'>
-                          {/* Details — always visible */}
-                          <Link
-                            to={`/ideas/${idea.id}`}
+                          {/* Details — opens modal */}
+                          <button
+                            onClick={() => setIdeaToView(idea)}
                             className='flex h-7 w-7 items-center justify-center rounded-lg border border-secondary/20 text-secondary/50 transition-colors hover:border-secondary/40 hover:text-secondary'
                             title='View details'
                           >
                             <Eye size={13} />
-                          </Link>
+                          </button>
 
                           {/* Update — only draft or rejected */}
                           <button
@@ -337,6 +338,9 @@ export default function EntrepreneurDashboard() {
           <Button variant='danger' loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(ideaToDelete.id)}>Delete</Button>
         </div>
       </Modal>
+
+      {/* ── IDEA DETAIL MODAL ── */}
+      <IdeaDetailModal idea={ideaToView} onClose={() => setIdeaToView(null)} onEdit={(id) => { setIdeaToView(null); navigate(`/submit?edit=${id}`) }} />
     </div>
   )
 }
@@ -351,6 +355,128 @@ function DashSkeleton() {
         </div>
         {Array.from({ length: 3 }).map((_, i) => <div key={i} className='h-48 animate-pulse rounded-2xl bg-secondary/10' />)}
       </div>
+    </div>
+  )
+}
+
+const STATUS_STYLES_MODAL = {
+  draft:     'bg-secondary/10 text-secondary/50 border-secondary/15',
+  submitted: 'bg-secondary/20 text-secondary/70 border-secondary/25',
+  review:    'bg-secondary/30 text-secondary border-secondary/35',
+  validated: 'bg-secondary text-primary border-secondary',
+  rejected:  'bg-secondary/10 text-secondary/40 border-secondary/15',
+}
+
+function IdeaDetailModal({ idea, onClose, onEdit }) {
+  const { data: feedbacks = [] } = useQuery({
+    queryKey: ['feedbacks', String(idea?.id)],
+    queryFn: () => getFeedbacks(idea.id).then((r) => Array.isArray(r.data?.results) ? r.data.results : (Array.isArray(r.data) ? r.data : [])),
+    enabled: !!idea?.id,
+  })
+
+  if (!idea) return null
+
+  const avgScore = feedbacks.length
+    ? (feedbacks.reduce((s, f) => s + (f.weighted_score || 0), 0) / feedbacks.length).toFixed(1)
+    : 0
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
+        idea ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+    >
+      {/* Backdrop */}
+      <div className='absolute inset-0 bg-secondary/40 backdrop-blur-sm' onClick={onClose} />
+
+      {/* Modal */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        className='relative z-10 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-secondary/20 bg-primary shadow-[0_32px_64px_rgba(104,26,21,0.20)]'
+      >
+        {/* Header */}
+        <div className='sticky top-0 z-10 flex items-start justify-between border-b border-secondary/10 bg-primary px-6 py-5'>
+          <div className='flex-1 min-w-0 pr-4'>
+            <div className='mb-1.5 flex flex-wrap items-center gap-2'>
+              <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold capitalize ${STATUS_STYLES_MODAL[idea.status] || STATUS_STYLES_MODAL.draft}`}>
+                {idea.status}
+              </span>
+              {idea.sector && <span className='text-xs text-secondary/40'>{idea.sector}</span>}
+            </div>
+            <h2 className='font-display text-xl font-black tracking-tight text-secondary'>{idea.title}</h2>
+            <p className='mt-0.5 text-xs text-secondary/40'>{formatDate(idea.created_at)}</p>
+          </div>
+          <div className='flex items-center gap-2 shrink-0'>
+            <Link
+              to={`/ideas/${idea.id}`}
+              onClick={onClose}
+              className='flex items-center gap-1.5 rounded-xl border border-secondary/20 px-3 py-1.5 text-xs font-semibold text-secondary/60 transition-colors hover:border-secondary/40 hover:text-secondary'
+            >
+              <ExternalLink size={12} /> Full page
+            </Link>
+            <button onClick={onClose} className='flex h-8 w-8 items-center justify-center rounded-xl border border-secondary/15 text-secondary/40 hover:text-secondary'>
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className='space-y-5 p-6'>
+          {/* SGV score */}
+          <div className='flex items-center gap-4 rounded-2xl border border-secondary/12 bg-secondary/4 px-5 py-4'>
+            <div className='text-center'>
+              <p className='font-display text-3xl font-black text-secondary'>{avgScore}</p>
+              <p className='text-[10px] font-bold uppercase tracking-widest text-secondary/35'>SGV Score</p>
+            </div>
+            <div className='h-10 w-px bg-secondary/10' />
+            <div className='text-center'>
+              <p className='font-display text-3xl font-black text-secondary'>{feedbacks.length}</p>
+              <p className='text-[10px] font-bold uppercase tracking-widest text-secondary/35'>Reviews</p>
+            </div>
+            <div className='ml-auto flex gap-2'>
+              {['draft', 'rejected'].includes(idea.status) && (
+                <Button size='sm' variant='secondary' onClick={() => onEdit(idea.id)}>
+                  <Pencil size={13} /> Edit
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Fields */}
+          {[
+            { label: 'Description', value: idea.description },
+            { label: 'Problem',     value: idea.problem },
+            { label: 'Solution',    value: idea.solution },
+            { label: 'Target',      value: idea.target },
+          ].map(({ label, value }) => value ? (
+            <div key={label}>
+              <p className='mb-1.5 text-[10px] font-bold uppercase tracking-widest text-secondary/35'>{label}</p>
+              <p className='text-sm leading-relaxed text-secondary/70'>{value}</p>
+            </div>
+          ) : null)}
+
+          {/* Feedbacks */}
+          {feedbacks.length > 0 && (
+            <div>
+              <p className='mb-3 text-[10px] font-bold uppercase tracking-widest text-secondary/35'>Recent Feedbacks</p>
+              <div className='space-y-2'>
+                {feedbacks.slice(0, 3).map((f) => (
+                  <div key={f.id} className='rounded-xl border border-secondary/10 bg-secondary/4 px-4 py-3'>
+                    <div className='flex items-center justify-between'>
+                      <p className='text-xs font-bold text-secondary'>{f.reviewer_username || f.reviewer?.username}</p>
+                      <span className='font-display text-sm font-black text-secondary'>{f.weighted_score?.toFixed(1)}/25</span>
+                    </div>
+                    <p className='mt-1 text-xs text-secondary/55 line-clamp-2'>{f.comment}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   )
 }

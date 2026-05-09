@@ -6,12 +6,10 @@ import Navbar from './Navbar'
 import Sidebar from './Sidebar'
 
 // Pages that always use Navbar + Footer regardless of auth state
-const PUBLIC_LAYOUT_PATHS = ['/', '/explore', '/login', '/register', '/search']
+const PUBLIC_LAYOUT_PATHS = ['/', '/login', '/register', '/search']
 
 function isPublicLayout(pathname) {
   if (PUBLIC_LAYOUT_PATHS.includes(pathname)) return true
-  if (pathname.startsWith('/ideas/')) return true
-  if (pathname.startsWith('/profile/')) return true
   return false
 }
 
