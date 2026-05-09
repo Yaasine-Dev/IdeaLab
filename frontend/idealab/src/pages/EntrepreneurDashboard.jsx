@@ -60,11 +60,11 @@ export default function EntrepreneurDashboard() {
     onError: () => toast.error('Could not delete idea'),
   })
 
-  const stats = data?.stats || {}
-  const ideas = data?.ideas || []
+  const stats    = data?.stats || {}
+  const ideas    = data?.ideas || []
   const feedbacks = data?.recent_feedbacks || []
-  const sgvHistory = data?.sgv_history || []
-  const dims = data?.dimension_averages || {}
+  const sgvHistory = data?.sgv_evolution || data?.sgv_history || []
+  const dims      = data?.dimensions_radar?.reduce((acc, d) => ({ ...acc, [d.dimension]: d.score }), {}) || data?.dimension_averages || {}
 
   if (isLoading) return <DashSkeleton />
 

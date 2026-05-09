@@ -1,15 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { MessageSquare, Pencil, Trash2, ThumbsUp, ThumbsDown, Reply } from 'lucide-react'
+import { useState } from 'react'
 import { deleteComment, editComment, getComments } from '../../api/comments.api'
-import { castVote } from '../../api/votes.api'
+import { castVote, getVoteStats } from '../../api/votes.api'
 import useAuthStore from '../../store/authStore'
-import { levelBadge, timeAgo } from '../../utils/helpers'
+import { timeAgo } from '../../utils/helpers'
 import Avatar from '../ui/Avatar'
-import Badge from '../ui/Badge'
 import Button from '../ui/Button'
+import EmptyState from '../ui/EmptyState'
 import { useToast } from '../ui/Toast'
 import CommentForm from './CommentForm'
+
+const ease = [0.22, 1, 0.36, 1]
 
 export default function CommentTree({ ideaId }) {
   const user = useAuthStore((s) => s.user)
@@ -28,109 +31,101 @@ export default function CommentTree({ ideaId }) {
     enabled: !!ideaId,
   })
 
-  const roots = useMemo(() => comments.filter((c) => !c.parent_id), [comments])
-  const repliesByParent = useMemo(() => {
-    const map = {}
-    comments.forEach((c) => {
-      if (!c.parent_id) return
-      if (!map[c.parent_id]) map[c.parent_id] = []
-      map[c.parent_id].push(c)
-    })
-    return map
-  }, [comments])
-
-  const voteMutation = useMutation({
-    mutationFn: ({ id, value }) => castVote({ target_type: 'comment', target_id: id, value }),
-    onMutate: async ({ id, value }) => {
-      await queryClient.cancelQueries({ queryKey: ['comments', String(ideaId)] })
-      const previous = queryClient.getQueryData(['comments', String(ideaId)])
-      queryClient.setQueryData(['comments', String(ideaId)], (old = []) => old.map((c) => c.id === id ? { ...c, votes_count: (c.votes_count || 0) + value } : c))
-      return { previous }
-    },
-    onError: (_e, _vars, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(['comments', String(ideaId)], ctx.previous)
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['comments', String(ideaId)] }),
-  })
-
   const editMutation = useMutation({
     mutationFn: ({ id, content }) => editComment(id, { content }),
     onSuccess: () => {
       setEditingId(null)
-      setEditText('')
       queryClient.invalidateQueries({ queryKey: ['comments', String(ideaId)] })
     },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Could not edit comment'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: deleteComment,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comments', String(ideaId)] }),
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Could not delete comment'),
   })
 
-  if (isLoading) {
-    return <div className='space-y-2'>{Array.from({ length: 4 }).map((_, i) => <div key={i} className='h-20 animate-pulse rounded-xl bg-slate-100' />)}</div>
-  }
+  if (isLoading) return (
+    <div className='space-y-3'>
+      {Array.from({ length: 3 }).map((_, i) => <div key={i} className='h-20 animate-pulse rounded-2xl bg-secondary/8' />)}
+    </div>
+  )
 
   return (
     <div className='space-y-4'>
-      {roots.map((comment) => (
-        <div key={comment.id} className='space-y-2'>
-          <CommentNode
-            comment={comment}
-            user={user}
-            isEditing={editingId === comment.id}
-            editText={editText}
-            setEditText={setEditText}
-            onEdit={() => {
-              setEditingId(comment.id)
-              setEditText(comment.content || '')
-            }}
-            onSaveEdit={() => editMutation.mutate({ id: comment.id, content: editText })}
-            onCancelEdit={() => {
-              setEditingId(null)
-              setEditText('')
-            }}
-            onDelete={() => {
-              if (window.confirm('Delete this comment?')) deleteMutation.mutate(comment.id)
-            }}
-            onVote={(value) => voteMutation.mutate({ id: comment.id, value })}
-            onReplyToggle={() => setReplyTo((prev) => prev === comment.id ? null : comment.id)}
-            canReply
-          />
-
-          {replyTo === comment.id && (
-            <div className='ml-10'>
-              <CommentForm ideaId={ideaId} parentId={comment.id} onSuccess={() => setReplyTo(null)} onCancel={() => setReplyTo(null)} />
-            </div>
-          )}
-
-          {(repliesByParent[comment.id] || []).slice(0, 50).map((reply) => (
-            <div key={reply.id} className='ml-8 border-l-2 border-gray-200 pl-4'>
+      {comments.length ? (
+        <AnimatePresence>
+          {comments.map((comment, i) => (
+            <motion.div
+              key={comment.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.04, ease }}
+            >
               <CommentNode
-                comment={reply}
+                comment={comment}
                 user={user}
-                isEditing={editingId === reply.id}
+                ideaId={ideaId}
+                isEditing={editingId === comment.id}
                 editText={editText}
                 setEditText={setEditText}
-                onEdit={() => {
-                  setEditingId(reply.id)
-                  setEditText(reply.content || '')
-                }}
-                onSaveEdit={() => editMutation.mutate({ id: reply.id, content: editText })}
-                onCancelEdit={() => {
-                  setEditingId(null)
-                  setEditText('')
-                }}
-                onDelete={() => {
-                  if (window.confirm('Delete this comment?')) deleteMutation.mutate(reply.id)
-                }}
-                onVote={(value) => voteMutation.mutate({ id: reply.id, value })}
+                onEdit={() => { setEditingId(comment.id); setEditText(comment.content) }}
+                onSaveEdit={() => editMutation.mutate({ id: comment.id, content: editText })}
+                onCancelEdit={() => setEditingId(null)}
+                onDelete={() => deleteMutation.mutate(comment.id)}
+                onReply={() => setReplyTo(replyTo === comment.id ? null : comment.id)}
+                isReplying={replyTo === comment.id}
               />
-            </div>
-          ))}
-        </div>
-      ))}
 
+              {/* Reply form */}
+              <AnimatePresence>
+                {replyTo === comment.id && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease }}
+                    className='ml-10 mt-2'
+                  >
+                    <CommentForm
+                      ideaId={ideaId}
+                      parentId={comment.id}
+                      onSuccess={() => setReplyTo(null)}
+                      onCancel={() => setReplyTo(null)}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Nested replies */}
+              {comment.replies?.length > 0 && (
+                <div className='ml-10 mt-2 space-y-2 border-l-2 border-secondary/8 pl-4'>
+                  {comment.replies.map((reply) => (
+                    <CommentNode
+                      key={reply.id}
+                      comment={reply}
+                      user={user}
+                      ideaId={ideaId}
+                      isEditing={editingId === reply.id}
+                      editText={editText}
+                      setEditText={setEditText}
+                      onEdit={() => { setEditingId(reply.id); setEditText(reply.content) }}
+                      onSaveEdit={() => editMutation.mutate({ id: reply.id, content: editText })}
+                      onCancelEdit={() => setEditingId(null)}
+                      onDelete={() => deleteMutation.mutate(reply.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      ) : (
+        <EmptyState icon={MessageSquare} title='No comments yet' description='Be the first to share your thoughts.' />
+      )}
+
+      {/* New comment form */}
       <div className='pt-2'>
         <CommentForm ideaId={ideaId} />
       </div>
@@ -138,56 +133,90 @@ export default function CommentTree({ ideaId }) {
   )
 }
 
-function CommentNode({
-  comment,
-  user,
-  isEditing,
-  editText,
-  setEditText,
-  onEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onDelete,
-  onVote,
-  onReplyToggle,
-  canReply = false,
-}) {
-  const isOwn = user && String(user.id) === String(comment.user?.id || comment.author?.id || comment.user_id)
-  const deleted = comment.is_deleted
+function CommentNode({ comment, user, ideaId, isEditing, editText, setEditText, onEdit, onSaveEdit, onCancelEdit, onDelete, onReply, isReplying }) {
+  const queryClient = useQueryClient()
+  const isOwn = user && String(user.id) === String(comment.author)
+  const canEdit = comment.can_edit && isOwn
+
+  const voteMutation = useMutation({
+    mutationFn: (value) => castVote({ target_type: 'comment', target_id: comment.id, value }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comments', String(ideaId)] }),
+  })
+
+  const { data: voteStats } = useQuery({
+    queryKey: ['votes', 'comment', comment.id],
+    queryFn: () => getVoteStats('comment', comment.id).then((r) => r.data),
+    enabled: !!user,
+  })
 
   return (
-    <div className='rounded-xl border bg-white p-3'>
-      <div className='mb-2 flex items-start gap-2'>
-        <Avatar size='sm' src={comment.user?.avatar || comment.author?.avatar} username={comment.user?.username || comment.author?.username || 'U'} />
-        <div className='min-w-0 flex-1'>
-          <div className='flex flex-wrap items-center gap-2 text-sm'>
-            <span className='font-semibold'>{comment.user?.username || comment.author?.username || 'Unknown'}</span>
-            <Badge className={levelBadge(comment.user?.level || comment.author?.level)}>{comment.user?.level || comment.author?.level || 'bronze'}</Badge>
-            <span className='text-slate-500'>{timeAgo(comment.created_at)}</span>
-            {comment.updated_at && comment.updated_at !== comment.created_at && <span className='text-xs text-slate-400'>edited</span>}
+    <div className='rounded-2xl border border-secondary/12 bg-primary p-4'>
+      <div className='flex items-start gap-3'>
+        <Avatar src={comment.author_avatar} username={comment.author_name || 'U'} size='sm' />
+        <div className='flex-1 min-w-0'>
+          <div className='flex items-center gap-2'>
+            <p className='text-sm font-bold text-secondary'>{comment.author_name}</p>
+            <p className='text-xs text-secondary/35'>{timeAgo(comment.created_at)}</p>
+            {comment.updated_at !== comment.created_at && (
+              <p className='text-xs text-secondary/25 italic'>edited</p>
+            )}
           </div>
 
-          {deleted ? (
-            <p className='mt-1 text-sm italic text-slate-400'>[This comment was deleted]</p>
-          ) : isEditing ? (
+          {isEditing ? (
             <div className='mt-2'>
-              <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3} className='w-full rounded border px-2 py-1 text-sm' />
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                rows={3}
+                className='input-premium resize-none'
+              />
               <div className='mt-2 flex gap-2'>
                 <Button size='sm' onClick={onSaveEdit}>Save</Button>
                 <Button size='sm' variant='ghost' onClick={onCancelEdit}>Cancel</Button>
               </div>
             </div>
           ) : (
-            <p className='mt-1 text-sm text-slate-700'>{comment.content}</p>
+            <p className='mt-1 text-sm leading-relaxed text-secondary/65'>{comment.content}</p>
           )}
 
-          {user && !deleted && !isEditing && (
-            <div className='mt-2 flex flex-wrap items-center gap-3 text-xs'>
-              <button className='inline-flex items-center gap-1 text-slate-600' onClick={() => onVote(1)}><ThumbsUp size={13} />{comment.votes_count || 0}</button>
-              <button className='inline-flex items-center gap-1 text-slate-600' onClick={() => onVote(-1)}><ThumbsDown size={13} /></button>
-              {canReply && <button className='text-secondary' onClick={onReplyToggle}>Reply</button>}
-              {isOwn && <button className='inline-flex items-center gap-1 text-slate-600' onClick={onEdit}><Pencil size={12} />Edit</button>}
-              {isOwn && <button className='inline-flex items-center gap-1 text-secondary' onClick={onDelete}><Trash2 size={12} />Delete</button>}
+          {/* Actions */}
+          {user && !isEditing && (
+            <div className='mt-2 flex flex-wrap items-center gap-3'>
+              {/* Vote */}
+              <button
+                onClick={() => voteMutation.mutate(1)}
+                className={`flex items-center gap-1 text-xs font-semibold transition-colors ${voteStats?.user_vote === 1 ? 'text-secondary' : 'text-secondary/35 hover:text-secondary'}`}
+              >
+                <ThumbsUp size={12} /> {voteStats?.upvotes || 0}
+              </button>
+              <button
+                onClick={() => voteMutation.mutate(-1)}
+                className={`flex items-center gap-1 text-xs font-semibold transition-colors ${voteStats?.user_vote === -1 ? 'text-secondary' : 'text-secondary/35 hover:text-secondary'}`}
+              >
+                <ThumbsDown size={12} /> {voteStats?.downvotes || 0}
+              </button>
+
+              {/* Reply */}
+              {onReply && (
+                <button
+                  onClick={onReply}
+                  className={`flex items-center gap-1 text-xs font-semibold transition-colors ${isReplying ? 'text-secondary' : 'text-secondary/35 hover:text-secondary'}`}
+                >
+                  <Reply size={12} /> Reply
+                </button>
+              )}
+
+              {/* Edit / Delete — own comments only */}
+              {canEdit && (
+                <button onClick={onEdit} className='flex items-center gap-1 text-xs font-semibold text-secondary/35 hover:text-secondary transition-colors'>
+                  <Pencil size={12} /> Edit
+                </button>
+              )}
+              {isOwn && (
+                <button onClick={onDelete} className='flex items-center gap-1 text-xs font-semibold text-secondary/35 hover:text-secondary transition-colors'>
+                  <Trash2 size={12} /> Delete
+                </button>
+              )}
             </div>
           )}
         </div>

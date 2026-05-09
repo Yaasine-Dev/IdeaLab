@@ -32,7 +32,7 @@ export default function Notifications() {
   const setUnreadCount = useNotifStore((s) => s.setUnreadCount)
 
   const params = useMemo(() => ({
-    ...(tab === 'unread' ? { is_read: 'false' } : {}),
+    ...(tab === 'unread' ? { unread: true } : {}),
   }), [tab])
 
   const { data, isLoading } = useQuery({
@@ -145,7 +145,7 @@ export default function Notifications() {
                     <div className='flex-1 min-w-0'>
                       <div className='flex items-center gap-2'>
                         <span className='text-[10px] font-bold uppercase tracking-widest text-secondary/35'>
-                          {TYPE_LABEL[n.type] || n.type}
+                          {TYPE_LABEL[n.notif_type || n.type] || n.notif_type || n.type}
                         </span>
                         {!n.is_read && <span className='h-1.5 w-1.5 rounded-full bg-secondary' />}
                       </div>

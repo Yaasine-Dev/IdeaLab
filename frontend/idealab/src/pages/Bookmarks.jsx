@@ -28,7 +28,7 @@ export default function Bookmarks() {
     queryFn: async () => {
       const res = await getBookmarks()
       const rows = Array.isArray(res.data?.results) ? res.data.results : (Array.isArray(res.data) ? res.data : [])
-      return rows.map((r) => ({ idea: r.idea || r, saved_at: r.saved_at }))
+      return rows.map((r) => ({ idea: r.idea_details || r.idea || r, saved_at: r.created_at || r.saved_at }))
     },
   })
 

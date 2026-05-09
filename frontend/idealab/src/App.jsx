@@ -31,7 +31,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return
-    getNotifs({ is_read: 'false' })
+    getNotifs({ unread: true })
       .then((r) => {
         const items = Array.isArray(r.data?.results) ? r.data.results : (Array.isArray(r.data) ? r.data : [])
         setUnreadCount(items.length)

@@ -17,7 +17,7 @@ export default function IdeaCard({ idea }) {
     queryFn: async () => {
       const res = await getBookmarks()
       const rows = Array.isArray(res.data?.results) ? res.data.results : (Array.isArray(res.data) ? res.data : [])
-      return rows.map((r) => String(r.idea?.id ?? r.idea_id ?? r.id))
+      return rows.map((r) => String(r.idea_details?.id ?? r.idea?.id ?? r.idea_id ?? r.id))
     },
     enabled: !!user,
     staleTime: 30 * 1000,
