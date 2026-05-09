@@ -29,6 +29,10 @@
   --radius: 0.5rem;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   @apply bg-primary text-secondary font-sans antialiased;
 }
@@ -126,6 +130,15 @@ body {
 }
 
 @layer utilities {
+  /* GSAP Flip — feature card states */
+  .feature-expanded {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+  .feature-collapsed {
+    opacity: 0.45;
+    filter: blur(1px);
+  }
   .font-display {
     font-family: 'Cabinet Grotesk', 'Inter', sans-serif;
   }

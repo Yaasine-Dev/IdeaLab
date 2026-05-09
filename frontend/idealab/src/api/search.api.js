@@ -1,3 +1,4 @@
 import api from './axios'
 
-export const globalSearch = (q) => api.get('/search/', { params: { q } })
+export const globalSearch = (q, filter = 'all') =>
+  api.get('/search/', { params: { q, filter } })

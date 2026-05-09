@@ -47,6 +47,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
 
   const links = getLinks(user?.role)
+  const dashPath = user?.role === 'reviewer' ? '/reviewer' : user?.role === 'admin' ? '/admin' : '/dashboard'
 
   return (
     <motion.aside
@@ -66,7 +67,7 @@ export default function Sidebar() {
               exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.25, ease }}
             >
-              <Link to='/' className='flex items-center gap-2.5'>
+              <Link to={dashPath} className='flex items-center gap-2.5'>
                 <div className='flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-secondary'>
                   <Lightbulb size={14} className='text-primary' />
                 </div>
@@ -85,7 +86,7 @@ export default function Sidebar() {
               transition={{ duration: 0.2 }}
               className='mx-auto'
             >
-              <Link to='/' className='flex h-7 w-7 items-center justify-center rounded-lg bg-secondary'>
+              <Link to={dashPath} className='flex h-7 w-7 items-center justify-center rounded-lg bg-secondary'>
                 <Lightbulb size={14} className='text-primary' />
               </Link>
             </motion.div>

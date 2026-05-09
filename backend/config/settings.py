@@ -90,7 +90,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'idealab_db',
+        'NAME': 'idealab',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',

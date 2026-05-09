@@ -12,22 +12,28 @@ export default function CommentForm({ ideaId, parentId = null, onSuccess, onCanc
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm({ defaultValues: { content: '' } })
 
   const mutation = useMutation({
-    mutationFn: (data) => postComment(ideaId, data),
+    mutationFn: (data) => postComment(data),
     onSuccess: () => {
       toast.success('Comment posted')
       reset()
       queryClient.invalidateQueries({ queryKey: ['comments', String(ideaId)] })
       onSuccess?.()
     },
-    onError: (error) => toast.error(error?.response?.data?.detail || 'Could not post comment'),
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Could not post comment'),
   })
 
   if (!user) return null
 
+  const charCount = (watch('content') || '').length
+
   return (
     <form
-      onSubmit={handleSubmit((values) => mutation.mutate({ parent: parentId || null, content: values.content }))}
-      className='rounded-xl border bg-white p-3'
+      onSubmit={handleSubmit((values) => mutation.mutate({
+        idea: ideaId,
+        parent: parentId || null,
+        content: values.content,
+      }))}
+      className='rounded-2xl border border-secondary/15 bg-primary p-4'
     >
       <textarea
         {...register('content', {
@@ -36,18 +42,21 @@ export default function CommentForm({ ideaId, parentId = null, onSuccess, onCanc
           maxLength: { value: 1000, message: 'Max 1000 characters' },
         })}
         rows={3}
-        className='w-full rounded-lg border px-3 py-2 text-sm'
-        placeholder='Write your comment...'
+        className='input-premium resize-none'
+        placeholder={parentId ? 'Write your reply…' : 'Share your thoughts on this idea…'}
       />
-      <div className='mt-1 flex items-center justify-between text-xs text-slate-500'>
-        <span>{errors.content?.message || ''}</span>
-        <span>{(watch('content') || '').length}/1000</span>
-      </div>
-      <div className='mt-2 flex gap-2'>
-        <Button type='submit' loading={mutation.isPending} size='sm'>
-          {parentId ? 'Reply' : 'Post Comment'}
-        </Button>
-        {onCancel && <Button type='button' size='sm' variant='ghost' onClick={onCancel}>Cancel</Button>}
+      <div className='mt-2 flex items-center justify-between'>
+        <span className='text-xs text-secondary/40'>
+          {errors.content?.message || `${charCount}/1000`}
+        </span>
+        <div className='flex gap-2'>
+          {onCancel && (
+            <Button type='button' size='sm' variant='ghost' onClick={onCancel}>Cancel</Button>
+          )}
+          <Button type='submit' loading={mutation.isPending} size='sm'>
+            {parentId ? 'Reply' : 'Post Comment'}
+          </Button>
+        </div>
       </div>
     </form>
   )

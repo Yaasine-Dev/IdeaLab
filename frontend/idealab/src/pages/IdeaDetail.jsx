@@ -5,7 +5,9 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getBookmarks, toggleBookmark } from '../api/bookmarks.api'
 import { getFeedbacks } from '../api/feedbacks.api'
-import { changeIdeaStatus } from '../api/ideas.api'
+import { changeIdeaStatus, getIdea } from '../api/ideas.api'
+import { exportCSV, exportJSON, exportPDF } from '../api/export.api'
+import { castVote, getVoteStats } from '../api/votes.api'
 import CommentTree from '../components/comments/CommentTree'
 import FeedbackCard from '../components/feedbacks/FeedbackCard'
 import FeedbackForm from '../components/feedbacks/FeedbackForm'
@@ -89,6 +91,24 @@ export default function IdeaDetail() {
     onError: () => toast.error('Could not update status'),
   })
 
+  const { data: voteStats } = useQuery({
+    queryKey: ['votes', 'idea', id],
+    queryFn: () => getVoteStats('idea', id).then((r) => r.data),
+    enabled: !!id,
+  })
+
+  const voteMutation = useMutation({
+    mutationFn: (value) => castVote({ target_type: 'idea', target_id: id, value }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['votes', 'idea', id] }),
+    onError: () => toast.error('Could not vote'),
+  })
+
+  const exportMutation = useMutation({
+    mutationFn: (type) => type === 'csv' ? exportCSV(id) : type === 'json' ? exportJSON(id) : exportPDF(id),
+    onSuccess: () => toast.success('Export started — check back shortly'),
+    onError: () => toast.error('Export failed'),
+  })
+
   if (isLoading) return <DetailSkeleton />
   if (!idea) return (
     <div className='flex min-h-screen items-center justify-center bg-primary'>
@@ -119,7 +139,7 @@ export default function IdeaDetail() {
                 {idea.sector && <span className='text-xs text-primary/50'>{idea.sector}</span>}
               </div>
               <h1 className='font-display text-3xl font-black tracking-tight text-primary'>{idea.title}</h1>
-              <p className='mt-2 text-sm text-primary/60'>{idea.description}</p>
+              <p data-gsap='fade-up' data-gsap-delay='0.2' className='mt-2 text-sm text-primary/60'>{idea.description}</p>
               <p className='mt-2 text-xs text-primary/40'>by {idea.owner?.username} · {timeAgo(idea.created_at)}</p>
             </div>
 
@@ -256,6 +276,55 @@ export default function IdeaDetail() {
               </div>
             </div>
           </div>
+
+          {/* Vote buttons */}
+          {user && (
+            <div className='rounded-2xl border border-secondary/15 bg-primary p-5 shadow-[0_4px_24px_rgba(104,26,21,0.06)]'>
+              <p className='mb-3 text-[10px] font-bold uppercase tracking-widest text-secondary/35'>Community Vote</p>
+              <div className='flex items-center gap-3'>
+                <button
+                  onClick={() => voteMutation.mutate(1)}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-semibold transition-all ${
+                    voteStats?.user_vote === 1
+                      ? 'border-secondary bg-secondary text-primary'
+                      : 'border-secondary/20 text-secondary/60 hover:border-secondary/40 hover:text-secondary'
+                  }`}
+                >
+                  👍 {voteStats?.upvotes || 0}
+                </button>
+                <button
+                  onClick={() => voteMutation.mutate(-1)}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-semibold transition-all ${
+                    voteStats?.user_vote === -1
+                      ? 'border-secondary bg-secondary text-primary'
+                      : 'border-secondary/20 text-secondary/60 hover:border-secondary/40 hover:text-secondary'
+                  }`}
+                >
+                  👎 {voteStats?.downvotes || 0}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Export buttons — owner only */}
+          {user && String(user.id) === String(idea.owner?.id) && (
+            <div className='rounded-2xl border border-secondary/15 bg-primary p-5 shadow-[0_4px_24px_rgba(104,26,21,0.06)]'>
+              <p className='mb-3 text-[10px] font-bold uppercase tracking-widest text-secondary/35'>Export Idea</p>
+              <div className='space-y-2'>
+                {[['csv', 'CSV'], ['json', 'JSON'], ['pdf', 'PDF']].map(([type, label]) => (
+                  <button
+                    key={type}
+                    onClick={() => exportMutation.mutate(type)}
+                    disabled={exportMutation.isPending}
+                    className='flex w-full items-center justify-between rounded-xl border border-secondary/20 px-4 py-2 text-sm font-semibold text-secondary/60 transition-all hover:border-secondary/40 hover:text-secondary disabled:opacity-40'
+                  >
+                    Export as {label}
+                    <span className='text-xs text-secondary/30'>↓</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Reviewer verdict panel in sidebar too */}
           {canVerdict && (

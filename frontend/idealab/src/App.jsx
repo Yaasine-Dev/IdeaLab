@@ -36,7 +36,7 @@ export default function App() {
         const items = Array.isArray(r.data?.results) ? r.data.results : (Array.isArray(r.data) ? r.data : [])
         setUnreadCount(items.length)
       })
-      .catch(() => {}) // silently ignore — user stays on current page
+      .catch(() => {}) 
   }, [user?.id])
 
   return (
