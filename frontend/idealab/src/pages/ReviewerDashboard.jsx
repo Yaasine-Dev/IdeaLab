@@ -3,8 +3,9 @@ import { motion } from 'framer-motion'
 import { Award, BarChart2, ChevronRight, ClipboardList, MessageSquare, Star, TrendingUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getFeedbacks, getMyReviews } from '../api/feedbacks.api'
+import { getFeedbacks } from '../api/feedbacks.api'
 import { getIdeas } from '../api/ideas.api'
+import { getUserProfile } from '../api/users.api'
 import EmptyState from '../components/ui/EmptyState'
 import useAuthStore from '../store/authStore'
 import { formatDate, timeAgo } from '../utils/helpers'
@@ -29,6 +30,14 @@ export default function ReviewerDashboard() {
   const user = useAuthStore((s) => s.user)
   const [page, setPage] = useState(1)
   const PER_PAGE = 8
+
+  // fetch real profile for reputation
+  const { data: profile } = useQuery({
+    queryKey: ['user', user?.username],
+    queryFn: () => getUserProfile(user?.username).then((r) => r.data),
+    enabled: !!user?.username,
+    staleTime: 0,
+  })
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', 'reviewer'],
@@ -71,8 +80,8 @@ export default function ReviewerDashboard() {
   const evaluated     = data?.evaluated_ideas || []
   const pending       = data?.pending_ideas || []
   const scores        = data?.scores || []
-  const rep           = Number(stats.reputation_points || 0)
-  const level         = inferLevel(rep)
+  const rep           = Number(profile?.reputation_points || stats.reputation_points || 0)
+  const level         = profile?.level || inferLevel(rep)
   const levelCfg      = LEVEL_CONFIG[level]
   const repProgress   = Math.min(((rep - levelCfg.min) / (levelCfg.max - levelCfg.min || 1)) * 100, 100)
 
