@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getMyReviews } from '../api/feedbacks.api'
+import { getFeedbacks, getMyReviews } from '../api/feedbacks.api'
 import { getIdeas } from '../api/ideas.api'
 import { getUserProfile, updateMyProfile } from '../api/users.api'
 import Button from '../components/ui/Button'
@@ -45,6 +45,7 @@ export default function Profile() {
   const { data: user, isLoading } = useQuery({
     queryKey: ['user', username],
     queryFn: () => getUserProfile(username).then((r) => r.data),
+    staleTime: 0, // always refetch fresh data
   })
 
   const isOwn = me?.username === username

@@ -42,6 +42,7 @@ export default function FeedbackForm({ ideaId, existingFeedback = null, ideaOwne
     onSuccess: () => {
       toast.success(existingFeedback ? 'Feedback updated!' : 'Feedback submitted!')
       queryClient.invalidateQueries({ queryKey: ['feedbacks', String(ideaId)] })
+      queryClient.invalidateQueries({ queryKey: ['user'] }) // refresh reputation
       onSuccess?.()
     },
     onError: (err) => toast.error(err?.response?.data?.detail || err?.response?.data?.non_field_errors?.[0] || 'Could not submit feedback'),
